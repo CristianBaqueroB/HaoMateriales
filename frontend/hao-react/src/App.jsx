@@ -45,7 +45,7 @@ const handleLogin = async (e) => {
         setError(`El rol "${rolRecibido}" no tiene un dashboard asignado.`);
       }
     } else {
-      setError(data.message || 'Credenciales incorrectas');
+      setError(data.error || data.message || 'Credenciales incorrectas');
     }
   } catch (err) { 
     setError('Error de conexión con el servidor.'); 

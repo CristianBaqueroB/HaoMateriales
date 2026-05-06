@@ -9,19 +9,24 @@ export default function Registro() {
   const handleRegistro = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
+      const response = await fetch('http://localhost:3000/api/auth/registro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Enviamos el rol fijo como 'usuario'
-        body: JSON.stringify({ ...formData, role: 'usuario' }),
+        credentials: 'include',
+        body: JSON.stringify({ ...formData, telefono: '', direccion: '' }),
       });
 
       if (response.ok) {
         alert('Registro exitoso. Ahora puedes iniciar sesión.');
         navigate('/login');
       } else {
-        const data = await response.json();
-        setError(data.message || 'Error al registrar');
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          /* 404/HTML u otra respuesta no JSON */
+        }
+        setError(data.error || data.message || data.mensaje || 'Error al registrar');
       }
     } catch (err) {
       setError('Error de conexión con el servidor');
