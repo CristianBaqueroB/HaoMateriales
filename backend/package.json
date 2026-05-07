@@ -1,7 +1,7 @@
 {
   "name": "house-house-backend",
   "version": "1.0.0",
-  "description": "Backend para sistema de ventas de láminas Hao Materiales",
+  "description": "Backend MERN (Express + Node + MongoDB) — ventas de láminas Hao Materiales",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "pg": "^8.20.0",
+    "mongoose": "^8.19.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },

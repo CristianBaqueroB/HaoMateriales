@@ -3,6 +3,7 @@ const cors = require('cors');
 const session = require('express-session');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
+const connectDB = require('./config/db');
 require('dotenv').config();
 
 const app = express();
@@ -42,6 +43,14 @@ app.use('/api/operador', require('./routes/operador'));
 app.use('/api/despachador', require('./routes/despachador'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor en http://localhost:${PORT}`);
-});
+
+connectDB()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`🚀 Servidor en http://localhost:${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error('❌ No se pudo iniciar el servidor:', err.message);
+        process.exit(1);
+    });

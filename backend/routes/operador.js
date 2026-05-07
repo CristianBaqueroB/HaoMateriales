@@ -1,89 +1,87 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
-const pool = require('../config/db');
+const Pedido = require('../models/Pedido');
 const { requireRole } = require('../middleware/auth');
 
-// Seguridad: Solo el personal de taller y el jefe
 router.use(requireRole(['operador', 'administrador']));
 
-/**
- * LISTAR COLA DE PRODUCCIÓN
- * GET /api/operador/pedidos
- */
+const ORDEN_ESTADO = {
+    CORTE: 1,
+    ENCHAPE: 2,
+    REFILADA: 3,
+    ZUNCHADA: 4,
+    LISTO: 5,
+};
+
 router.get('/pedidos', async (req, res) => {
     try {
-        // Filtramos para NO mostrar 'PENDIENTE' ni 'ENTREGADO'
-        const query = `
-            SELECT 
-                p.id, 
-                u.nombre as cliente, 
-                l.nombre as lamina, 
-                p.cantidad_laminas, 
-                p.estado, 
-                p.fecha_entrega 
-            FROM pedidos p
-            JOIN usuarios u ON p.usuario_id = u.id
-            JOIN laminas l ON p.lamina_id = l.id
-            WHERE p.estado NOT IN ('PENDIENTE', 'ENTREGADO') 
-            ORDER BY 
-                CASE 
-                    WHEN p.estado = 'CORTE' THEN 1
-                    WHEN p.estado = 'ENCHAPE' THEN 2
-                    WHEN p.estado = 'REFILADA' THEN 3
-                    WHEN p.estado = 'ZUNCHADA' THEN 4
-                    WHEN p.estado = 'LISTO' THEN 5
-                    ELSE 6
-                END, 
-                p.fecha_entrega ASC`;
+        const rows = await Pedido.find({
+            estado: { $nin: ['PENDIENTE', 'ENTREGADO', 'CANCELADO'] },
+        })
+            .populate('usuario_id', 'nombre')
+            .populate('lamina_id', 'nombre')
+            .lean();
 
-        const result = await pool.query(query);
-        
+        const cola = rows
+            .map((p) => ({
+                id: p._id.toString(),
+                cliente: p.usuario_id?.nombre,
+                lamina: p.lamina_id?.nombre,
+                cantidad_laminas: p.cantidad_laminas,
+                estado: p.estado,
+                fecha_entrega: p.fecha_entrega,
+            }))
+            .sort((a, b) => {
+                const oa = ORDEN_ESTADO[a.estado] ?? 99;
+                const ob = ORDEN_ESTADO[b.estado] ?? 99;
+                if (oa !== ob) return oa - ob;
+                return String(a.fecha_entrega).localeCompare(String(b.fecha_entrega));
+            });
+
         res.json({
-            trabajos_activos: result.rowCount,
-            cola: result.rows
+            trabajos_activos: cola.length,
+            cola,
         });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Error al obtener la cola de producción" });
+        res.status(500).json({ error: 'Error al obtener la cola de producción' });
     }
 });
 
-/**
- * AVANZAR ESTADO (Flujo de Fábrica)
- * PUT /api/operador/pedidos/:id/avanzar
- */
 router.put('/pedidos/:id/avanzar', async (req, res) => {
     const { id } = req.params;
     const FLUJO = ['CORTE', 'ENCHAPE', 'REFILADA', 'ZUNCHADA', 'LISTO'];
 
     try {
-        const pedido = await pool.query("SELECT estado FROM pedidos WHERE id = $1", [id]);
-        if (pedido.rows.length === 0) return res.status(404).json({ error: "Pedido no encontrado" });
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Identificador inválido' });
+        }
 
-        const estadoActual = pedido.rows[0].estado;
+        const pedidoDoc = await Pedido.findById(id);
+        if (!pedidoDoc) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+        const estadoActual = pedidoDoc.estado;
         const indexActual = FLUJO.indexOf(estadoActual);
 
-        // Si el estado es 'PENDIENTE', el operador no puede avanzarlo
         if (estadoActual === 'PENDIENTE') {
-            return res.status(403).json({ 
-                error: "Acción no permitida", 
-                mensaje: "Este pedido aún no ha sido autorizado por el despachador." 
+            return res.status(403).json({
+                error: 'Acción no permitida',
+                mensaje: 'Este pedido aún no ha sido autorizado por el despachador.',
             });
         }
 
         if (indexActual === -1 || indexActual === FLUJO.length - 1) {
-            return res.status(400).json({ error: "El pedido ya está en su fase final en taller" });
+            return res.status(400).json({ error: 'El pedido ya está en su fase final en taller' });
         }
 
         const nuevoEstado = FLUJO[indexActual + 1];
-        await pool.query(
-            "UPDATE pedidos SET estado = $1, actualizado_en = NOW() WHERE id = $2",
-            [nuevoEstado, id]
-        );
+        pedidoDoc.estado = nuevoEstado;
+        await pedidoDoc.save();
 
         res.json({ mensaje: `✅ Movido a ${nuevoEstado}`, actual: nuevoEstado });
-    } catch (err) {
-        res.status(500).json({ error: "Error en la línea de producción" });
+    } catch (_err) {
+        res.status(500).json({ error: 'Error en la línea de producción' });
     }
 });
 

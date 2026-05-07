@@ -51,33 +51,69 @@ const fetchUsuarios = async () => {
   const handleGuardar = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        codigo: nuevoMaterial.codigo.trim(),
+        nombre: nuevoMaterial.nombre.trim(),
+        descripcion: (nuevoMaterial.descripcion || '').trim(),
+        precio: Number(nuevoMaterial.precio),
+        stock: Number(nuevoMaterial.stock),
+      };
       const res = await fetch('http://localhost:3000/api/admin/laminas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoMaterial)
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert("¡Lámina creada!");
+        alert('¡Lámina creada!');
         setMostrarForm(false);
+        setNuevoMaterial({ codigo: '', nombre: '', descripcion: '', stock: 0, precio: 0 });
         fetchMateriales();
+      } else {
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          /* vacío */
+        }
+        alert(data.error || data.mensaje || 'No se pudo guardar la referencia');
       }
-    } catch (err) { alert("Error de conexión"); }
+    } catch (err) {
+      alert('Error de conexión');
+    }
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        nombre: editingMaterial.nombre,
+        descripcion: editingMaterial.descripcion ?? '',
+        precio: Number(editingMaterial.precio),
+        stock: Number(editingMaterial.stock),
+      };
       const res = await fetch(`http://localhost:3000/api/admin/laminas/${editingMaterial.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingMaterial)
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert("¡Actualizado con éxito!");
+        alert('¡Actualizado con éxito!');
         setEditingMaterial(null);
         fetchMateriales();
+      } else {
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          /* vacío */
+        }
+        alert(data.error || data.mensaje || 'No se pudo actualizar');
       }
-    } catch (err) { alert("Error al actualizar"); }
+    } catch (err) {
+      alert('Error al actualizar');
+    }
   };
 
   return (
@@ -124,7 +160,7 @@ const fetchUsuarios = async () => {
                     onChange={(e) => setNuevoMaterial({...nuevoMaterial, stock: e.target.value})} />
                   <textarea placeholder="Descripción detallada" className="p-4 rounded-2xl border bg-slate-50 outline-none focus:ring-4 focus:ring-red-900/10 focus:border-red-700 transition-all md:col-span-2"
                     onChange={(e) => setNuevoMaterial({...nuevoMaterial, descripcion: e.target.value})} />
-                  <button type="submit" className="md:col-span-3 bg-red-700 text-white py-5 rounded-2xl font-black hover:bg-red-800 shadow-lg shadow-red-900/20 transition-all">REGISTRAR EN POSTGRESQL</button>
+                  <button type="submit" className="md:col-span-3 bg-red-700 text-white py-5 rounded-2xl font-black hover:bg-red-800 shadow-lg shadow-red-900/20 transition-all">GUARDAR EN INVENTARIO</button>
                 </form>
               </div>
             )}

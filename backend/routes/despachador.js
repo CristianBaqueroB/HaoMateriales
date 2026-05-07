@@ -1,84 +1,75 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
-const pool = require('../config/db');
+const Pedido = require('../models/Pedido');
 const { requireRole } = require('../middleware/auth');
 
-// Seguridad: Solo despachadores y el administrador
 router.use(requireRole(['despachador', 'administrador']));
 
-/**
- * 1. PANEL DE PENDIENTES (La "Torre de Control")
- * GET /api/despachador/pendientes
- */
 router.get('/pendientes', async (req, res) => {
     try {
-        const query = `
-            SELECT 
-                p.id, 
-                u.nombre as cliente, 
-                l.nombre as producto, 
-                p.cantidad_laminas, 
-                p.fecha_entrega,
-                p.numero_pedido
-            FROM pedidos p
-            JOIN usuarios u ON p.usuario_id = u.id
-            JOIN laminas l ON p.lamina_id = l.id
-            WHERE p.estado = 'PENDIENTE'
-            ORDER BY p.fecha_entrega ASC`; // Lo más urgente primero
+        const rows = await Pedido.find({ estado: 'PENDIENTE' })
+            .populate('usuario_id', 'nombre')
+            .populate('lamina_id', 'nombre')
+            .sort({ fecha_entrega: 1 })
+            .lean();
 
-        const result = await pool.query(query);
-        
+        const pedidos = rows.map((p) => ({
+            id: p._id.toString(),
+            cliente: p.usuario_id?.nombre,
+            producto: p.lamina_id?.nombre,
+            cantidad_laminas: p.cantidad_laminas,
+            fecha_entrega: p.fecha_entrega,
+            numero_pedido: p.numero_pedido,
+        }));
+
         res.json({
-            conteo: result.rowCount,
-            pedidos: result.rows
+            conteo: pedidos.length,
+            pedidos,
         });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Error al cargar los pedidos pendientes" });
+        res.status(500).json({ error: 'Error al cargar los pedidos pendientes' });
     }
 });
 
-/**
- * 2. ENVIAR A TALLER (De PENDIENTE a CORTE)
- * PUT /api/despachador/pedidos/:id/iniciar
- */
 router.put('/pedidos/:id/iniciar', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(
-            "UPDATE pedidos SET estado = 'CORTE', actualizado_en = NOW() WHERE id = $1 AND estado = 'PENDIENTE' RETURNING id",
-            [id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({ error: "Pedido no encontrado o ya iniciado" });
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Identificador inválido' });
         }
 
-        res.json({ mensaje: "🚀 Pedido enviado a taller con éxito." });
-    } catch (err) {
-        res.status(500).json({ error: "Error al iniciar producción" });
+        const pedido = await Pedido.findOne({ _id: id, estado: 'PENDIENTE' });
+        if (!pedido) {
+            return res.status(400).json({ error: 'Pedido no encontrado o ya iniciado' });
+        }
+        pedido.estado = 'CORTE';
+        await pedido.save();
+
+        res.json({ mensaje: '🚀 Pedido enviado a taller con éxito.' });
+    } catch (_err) {
+        res.status(500).json({ error: 'Error al iniciar producción' });
     }
 });
 
-/**
- * 3. ENTREGAR AL CLIENTE (De LISTO a ENTREGADO)
- * PUT /api/despachador/pedidos/:id/entregar
- */
 router.put('/pedidos/:id/entregar', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(
-            "UPDATE pedidos SET estado = 'ENTREGADO', actualizado_en = NOW() WHERE id = $1 AND estado = 'LISTO' RETURNING id",
-            [id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({ error: "El pedido debe estar 'LISTO' para entregarse" });
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Identificador inválido' });
         }
 
-        res.json({ mensaje: "✅ Entrega realizada con éxito." });
-    } catch (err) {
-        res.status(500).json({ error: "Error al procesar la entrega" });
+        const pedido = await Pedido.findOne({ _id: id, estado: 'LISTO' });
+        if (!pedido) {
+            return res.status(400).json({ error: "El pedido debe estar 'LISTO' para entregarse" });
+        }
+        pedido.estado = 'ENTREGADO';
+        await pedido.save();
+
+        res.json({ mensaje: '✅ Entrega realizada con éxito.' });
+    } catch (_err) {
+        res.status(500).json({ error: 'Error al procesar la entrega' });
     }
 });
 

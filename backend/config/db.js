@@ -1,24 +1,16 @@
-const { Pool } = require('pg');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: process.env.DB_PORT,
-  ssl: {
-    rejectUnauthorized: false // Requerido para Neon
-  }
-});
+async function connectDB() {
+    const uri = process.env.MONGO_URI;
+    if (!uri) {
+        throw new Error('MONGO_URI no está definido en .env (usa la URI de MongoDB Atlas)');
+    }
+    mongoose.set('strictQuery', true);
+    await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 10_000,
+    });
+    console.log('✅ Conexión a MongoDB exitosa');
+}
 
-// Verificación inicial de conexión
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Error conectando a la DB:', err.stack);
-  } else {
-    console.log('✅ Conexión a PostgreSQL (Neon) exitosa');
-  }
-});
-
-module.exports = pool;
+module.exports = connectDB;
