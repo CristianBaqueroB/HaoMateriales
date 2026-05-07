@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
 
 async function connectDB() {
     const uri = process.env.MONGO_URI;
@@ -10,7 +9,9 @@ async function connectDB() {
     await mongoose.connect(uri, {
         serverSelectionTimeoutMS: 10_000,
     });
+    const dbNombre = mongoose.connection.name;
     console.log('✅ Conexión a MongoDB exitosa');
+    console.log(`📂 Colección Users en la base: "${dbNombre}" (colección típica: "users"). Revisá el mismo nombre de BD en Compass.`);
 }
 
 module.exports = connectDB;

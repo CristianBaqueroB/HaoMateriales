@@ -83,6 +83,46 @@ router.put('/pedidos/:id/avanzar', async (req, res) => {
     } catch (_err) {
         res.status(500).json({ error: 'Error en la línea de producción' });
     }
+    // ... dentro de router.put('/pedidos/:id/avanzar')
+
+const pedidoDoc = await Pedido.findById(id);
+if (!pedidoDoc) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+// --- NUEVA LÓGICA DE LÍMITE DIARIO ---
+const inicioHoy = new Date();
+inicioHoy.setHours(0, 0, 0, 0);
+
+const finHoy = new Date();
+finHoy.setHours(23, 59, 59, 999);
+
+// Sumamos la cantidad_laminas de todos los pedidos que ya están en proceso o terminados hoy
+// (Excluimos los que siguen en PENDIENTE)
+const agregadosHoy = await Pedido.aggregate([
+    {
+        $match: {
+            estado: { $nin: ['PENDIENTE', 'CANCELADO'] },
+            updatedAt: { $gte: inicioHoy, $lte: finHoy }
+        }
+    },
+    {
+        $group: {
+            _id: null,
+            totalLaminas: { $sum: "$cantidad_laminas" }
+        }
+    }
+]);
+
+const totalProcesado = agregadosHoy[0]?.totalLaminas || 0;
+const LIMITE_DIARIO = 30;
+
+// Si el pedido es nuevo en la línea (está en CORTE) y al sumarlo supera el límite
+if (pedidoDoc.estado === 'CORTE' && (totalProcesado + pedidoDoc.cantidad_laminas) > LIMITE_DIARIO) {
+    return res.status(403).json({ 
+        error: 'Límite diario alcanzado', 
+        mensaje: `No se pueden procesar más de ${LIMITE_DIARIO} láminas por día. Este pedido debe esperar a mañana.` 
+    });
+}
+// ---------------------------------------
 });
 
 module.exports = router;

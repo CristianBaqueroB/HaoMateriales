@@ -8,26 +8,42 @@ export default function Registro() {
 
   const handleRegistro = async (e) => {
     e.preventDefault();
+    setError('');
+    const payload = {
+      nombre: formData.nombre.trim(),
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+      telefono: '',
+      direccion: '',
+    };
+    if (payload.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
     try {
       const response = await fetch('http://localhost:3000/api/auth/registro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...formData, telefono: '', direccion: '' }),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        alert('Registro exitoso. Ahora puedes iniciar sesión.');
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data?.usuario?.id) {
+        alert('Registro exitoso. Ya podés iniciar sesión con el mismo correo y contraseña.');
         navigate('/login');
-      } else {
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          /* 404/HTML u otra respuesta no JSON */
-        }
-        setError(data.error || data.message || data.mensaje || 'Error al registrar');
+        return;
       }
+
+      if (response.ok && !data?.usuario?.id) {
+        setError(
+          'El servidor respondió sin confirmar el alta. Revisá que el backend esté conectado a MongoDB y volvé a intentar.'
+        );
+        return;
+      }
+
+      setError(data?.error || data?.message || data?.mensaje || 'Error al registrar');
     } catch (err) {
       setError('Error de conexión con el servidor');
     }
@@ -41,12 +57,34 @@ export default function Registro() {
           <h2 className="text-2xl font-bold text-center text-slate-800 mb-6">Crear Cuenta</h2>
           {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-sm">{error}</div>}
           <form onSubmit={handleRegistro} className="space-y-4">
-            <input type="text" placeholder="Nombre Completo" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
-              onChange={(e) => setFormData({...formData, nombre: e.target.value})} />
-            <input type="email" placeholder="Correo Electrónico" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
-              onChange={(e) => setFormData({...formData, email: e.target.value})} />
-            <input type="password" placeholder="Contraseña" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
-              onChange={(e) => setFormData({...formData, password: e.target.value})} />
+            <input
+              type="text"
+              placeholder="Nombre Completo"
+              required
+              autoComplete="name"
+              value={formData.nombre}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+            />
+            <input
+              type="email"
+              placeholder="Correo Electrónico"
+              required
+              autoComplete="email"
+              value={formData.email}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+            <input
+              type="password"
+              placeholder="Contraseña (mín. 6 caracteres)"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={formData.password}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-600"
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
             <button type="submit" className="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3 rounded-xl transition-all">REGISTRARSE</button>
           </form>
           <p className="text-center mt-6 text-sm">¿Ya tienes cuenta? <Link to="/login" className="text-red-700 font-bold">Inicia Sesión</Link></p>

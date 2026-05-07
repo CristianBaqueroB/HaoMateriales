@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function AdminDashboard() {
   const [materiales, setMateriales] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [tab, setTab] = useState('laminas'); // 'laminas' o 'usuarios'
+  const [ventas, setVentas] = useState([]);
+  const [ventasCargando, setVentasCargando] = useState(false);
+  const [ventasError, setVentasError] = useState('');
+  const [usuariosError, setUsuariosError] = useState('');
+  const [usuariosCargando, setUsuariosCargando] = useState(false);
+  const [tab, setTab] = useState('laminas'); // 'laminas' | 'usuarios' | 'ventas'
   
   const [nuevoMaterial, setNuevoMaterial] = useState({
     codigo: '', nombre: '', descripcion: '', stock: 0, precio: 0
@@ -12,10 +17,79 @@ export default function AdminDashboard() {
   const [editingMaterial, setEditingMaterial] = useState(null); // Para el Modal
   const [mostrarForm, setMostrarForm] = useState(false);
 
+  const fetchUsuarios = useCallback(async () => {
+    setUsuariosError('');
+    setUsuariosCargando(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/admin/usuarios', {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => null);
+
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!res.ok) {
+        setUsuarios([]);
+        setUsuariosError(data?.mensaje || data?.error || 'No se pudo cargar el listado de personal.');
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        setUsuarios(data);
+      } else {
+        setUsuarios([]);
+        setUsuariosError('El servidor devolvió un formato inesperado; no se pudo mostrar el personal.');
+      }
+    } catch (err) {
+      console.error(err);
+      setUsuarios([]);
+      setUsuariosError('Error de red al consultar usuarios. ¿El backend está en http://localhost:3000?');
+    } finally {
+      setUsuariosCargando(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMateriales();
     fetchUsuarios();
+  }, [fetchUsuarios]);
+
+  useEffect(() => {
+    if (tab === 'usuarios') fetchUsuarios();
+  }, [tab, fetchUsuarios]);
+
+  const fetchVentas = useCallback(async () => {
+    setVentasError('');
+    setVentasCargando(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/admin/ventas', {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        setVentas([]);
+        setVentasError(data?.mensaje || data?.error || 'No se pudo cargar historial de ventas.');
+        return;
+      }
+      setVentas(Array.isArray(data) ? data : []);
+    } catch {
+      setVentas([]);
+      setVentasError('Error de red al consultar ventas.');
+    } finally {
+      setVentasCargando(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (tab === 'ventas') fetchVentas();
+  }, [tab, fetchVentas]);
 
   const fetchMateriales = async () => {
   try {
@@ -37,17 +111,6 @@ export default function AdminDashboard() {
   }
 };
 
-const fetchUsuarios = async () => {
-  try {
-    const res = await fetch('http://localhost:3000/api/admin/usuarios', {
-      credentials: 'include' // 🔑 También aquí
-    });
-    const data = await res.json();
-    if (Array.isArray(data)) setUsuarios(data);
-  } catch (err) { console.error(err); }
-};
-
- 
   const handleGuardar = async (e) => {
     e.preventDefault();
     try {
@@ -116,6 +179,18 @@ const fetchUsuarios = async () => {
     }
   };
 
+  const logout = async () => {
+    try {
+      await fetch('http://localhost:3000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      /* vacío */
+    }
+    window.location.href = '/login';
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Navbar con Identidad Corporativa */}
@@ -125,9 +200,10 @@ const fetchUsuarios = async () => {
           <div className="flex gap-2 ml-6">
             <button onClick={() => setTab('laminas')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'laminas' ? 'bg-white text-red-700 shadow-md' : 'hover:bg-red-600'}`}>Inventario</button>
             <button onClick={() => setTab('usuarios')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'usuarios' ? 'bg-white text-red-700 shadow-md' : 'hover:bg-red-600'}`}>Personal</button>
+            <button onClick={() => setTab('ventas')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'ventas' ? 'bg-white text-red-700 shadow-md' : 'hover:bg-red-600'}`}>Historial ventas</button>
           </div>
         </div>
-        <button onClick={() => window.location.href='/login'} className="bg-red-900 px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-950 transition-all">Cerrar Sesión</button>
+        <button onClick={logout} className="bg-red-900 px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-950 transition-all">Cerrar Sesión</button>
       </nav>
 
       <main className="p-8 max-w-7xl mx-auto">
@@ -169,7 +245,6 @@ const fetchUsuarios = async () => {
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-slate-400 text-xs uppercase font-black tracking-widest border-b border-slate-100">
                   <tr>
-                    <th className="p-6">ID</th>
                     <th className="p-6">Referencia</th>
                     <th className="p-6">Nombre</th>
                     <th className="p-6 text-center">Stock Disponible</th>
@@ -180,7 +255,6 @@ const fetchUsuarios = async () => {
                 <tbody className="divide-y divide-slate-100">
                   {materiales.map((m) => (
                     <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="p-6 font-bold text-slate-300">#{m.id}</td>
                       <td className="p-6 font-mono text-sm text-red-700 font-bold">{m.codigo}</td>
                       <td className="p-6 font-bold text-slate-700">{m.nombre}</td>
                       <td className="p-6 text-center">
@@ -198,10 +272,28 @@ const fetchUsuarios = async () => {
               </table>
             </div>
           </>
-        ) : (
-          /* VISTA DE PERSONAL / USUARIOS */
+        ) : tab === 'usuarios' ? (
           <div className="animate-in fade-in slide-in-from-bottom-4">
-            <h2 className="text-4xl font-black text-slate-800 tracking-tight mb-8">Personal de Hao Materiales</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+              <h2 className="text-4xl font-black text-slate-800 tracking-tight">Personal de Hao Materiales</h2>
+              <button
+                type="button"
+                onClick={() => fetchUsuarios()}
+                disabled={usuariosCargando}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+              >
+                {usuariosCargando ? 'Actualizando…' : 'Actualizar lista'}
+              </button>
+            </div>
+            {usuariosError && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+                {usuariosError}
+              </div>
+            )}
+            <p className="text-slate-500 text-sm mb-4">
+              Incluye cuentas creadas desde <strong>Regístrate aquí</strong> (rol &quot;usuario&quot;). Si ves la tabla vacía
+              pero Compass sí tiene datos, revisá que en Compass estés en la misma base que imprime el backend al arrancar.
+            </p>
             <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-black tracking-widest">
@@ -223,6 +315,71 @@ const fetchUsuarios = async () => {
                       <td className="p-6 text-slate-400 text-sm">{new Date(u.creado_en).toLocaleDateString()}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+              <h2 className="text-4xl font-black text-slate-800 tracking-tight">Historial de ventas</h2>
+              <button
+                type="button"
+                onClick={() => fetchVentas()}
+                disabled={ventasCargando}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+              >
+                {ventasCargando ? 'Actualizando…' : 'Actualizar lista'}
+              </button>
+            </div>
+            {ventasError && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+                {ventasError}
+              </div>
+            )}
+            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-900 text-slate-300 text-xs uppercase font-black tracking-widest">
+                  <tr>
+                    <th className="p-5">Pedido</th>
+                    <th className="p-5">Cliente</th>
+                    <th className="p-5">Entrega</th>
+                    <th className="p-5">Estado</th>
+                    <th className="p-5">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ventas.map((v) => (
+                    <tr key={v.numero_pedido} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-5">
+                        <p className="font-mono text-red-700 font-bold">{v.numero_pedido}</p>
+                        <p className="text-xs text-slate-500">{v.fecha_facturacion}</p>
+                      </td>
+                      <td className="p-5">
+                        <p className="font-bold text-slate-800">{v.cliente}</p>
+                        <p className="text-xs text-slate-500">{v.email}</p>
+                      </td>
+                      <td className="p-5 text-sm text-slate-600">
+                        {v.fecha_entrega}
+                        <p className="text-xs text-slate-500 mt-1">{v.tipo_entrega}</p>
+                      </td>
+                      <td className="p-5">
+                        <span className="px-3 py-1 rounded-lg text-xs font-black bg-slate-100 text-slate-700 uppercase">
+                          {v.estado_actual}
+                        </span>
+                      </td>
+                      <td className="p-5 font-black text-slate-900">
+                        ${new Intl.NumberFormat('es-CO').format(v.total || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                  {ventas.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400">
+                        No hay ventas registradas.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

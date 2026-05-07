@@ -9,6 +9,8 @@ const pedidoSchema = new mongoose.Schema(
         fecha_entrega: { type: String, required: true },
         cantidad_laminas: { type: Number, required: true },
         direccion_envio: { type: String, default: '', trim: true },
+        nota_envio_a_taller: { type: String, default: '', trim: true },
+        nota_entrega_logistica: { type: String, default: '', trim: true },
         estado: {
             type: String,
             enum: ['PENDIENTE', 'CORTE', 'ENCHAPE', 'REFILADA', 'ZUNCHADA', 'LISTO', 'ENTREGADO', 'CANCELADO'],

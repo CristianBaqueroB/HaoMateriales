@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 const API = 'http://localhost:3000/api/usuario';
 const RECARGO_DOMICILIO_COP = 4000;
+const ESTADOS_LISTOS = new Set(['ENTREGADO']);
+const ESTADOS_CANCELADOS = new Set(['CANCELADO']);
+const ETAPAS_PROCESO = new Set(['PENDIENTE', 'CORTE', 'ENCHAPE', 'REFILADA', 'ZUNCHADA', 'LISTO']);
 
 function nuevaLineaId() {
   return globalThis.crypto?.randomUUID?.() ?? `ln-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -26,6 +29,8 @@ export default function UserDashboard() {
 
   const [tipoEntrega, setTipoEntrega] = useState('punto_venta');
   const [direccionEnvio, setDireccionEnvio] = useState('');
+  const [filtroPedido, setFiltroPedido] = useState('');
+  const [filtroHistorial, setFiltroHistorial] = useState('TODOS');
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -111,9 +116,13 @@ export default function UserDashboard() {
       );
       const rec = first.tipo_entrega === 'domicilio' ? Number(first.recargo_envio) || 0 : 0;
       const canceladoCab = first.cabecera_estado === 'cancelado';
-      const algunoCancelado = g.filas.some((f) => f.estado === 'CANCELADO');
+      const algunoCancelado = g.filas.some((f) => ESTADOS_CANCELADOS.has(f.estado));
       const todosPendientes = g.filas.every((f) => f.estado === 'PENDIENTE');
       const puedeGestionar = !canceladoCab && !algunoCancelado && todosPendientes;
+      const estados = g.filas.map((f) => f.estado);
+      const todosCancelados = canceladoCab || estados.every((e) => ESTADOS_CANCELADOS.has(e));
+      const todosListos = estados.every((e) => ESTADOS_LISTOS.has(e));
+      const estadoHistorial = todosCancelados ? 'CANCELADAS' : todosListos ? 'LISTAS' : 'EN_PROCESO';
 
       return {
         ...g,
@@ -125,9 +134,29 @@ export default function UserDashboard() {
         fecha_entrega: first.fecha_entrega,
         puedeGestionar,
         estadoVista: algunoCancelado || canceladoCab ? 'CANCELADO' : first.estado,
+        estadoHistorial,
       };
     });
   }, [pedidos]);
+
+  const gruposPedidosFiltrados = useMemo(() => {
+    const q = filtroPedido.trim().toLowerCase();
+    const porTexto = q
+      ? gruposPedidos.filter((g) => String(g.numero || '').toLowerCase().includes(q))
+      : gruposPedidos;
+    if (filtroHistorial === 'TODOS') return porTexto;
+    return porTexto.filter((g) => g.estadoHistorial === filtroHistorial);
+  }, [gruposPedidos, filtroPedido, filtroHistorial]);
+
+  const resumenHistorial = useMemo(() => {
+    const base = { TODAS: gruposPedidos.length, LISTAS: 0, EN_PROCESO: 0, CANCELADAS: 0 };
+    for (const g of gruposPedidos) {
+      if (g.estadoHistorial === 'LISTAS') base.LISTAS += 1;
+      else if (g.estadoHistorial === 'CANCELADAS') base.CANCELADAS += 1;
+      else base.EN_PROCESO += 1;
+    }
+    return base;
+  }, [gruposPedidos]);
 
   const resetFormCrear = () => {
     setModoForm('crear');
@@ -334,15 +363,25 @@ export default function UserDashboard() {
     setError('');
   };
 
+  const logout = async () => {
+    try {
+      await fetch('http://localhost:3000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      /* vacío */
+    }
+    window.location.href = '/login';
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-red-700 p-4 text-white flex justify-between items-center shadow-lg">
         <h1 className="font-bold text-xl italic tracking-tighter">HAO MATERIALES</h1>
         <button
           type="button"
-          onClick={() => {
-            window.location.href = '/login';
-          }}
+          onClick={logout}
           className="text-sm font-medium border-b border-white/50"
         >
           Salir
@@ -354,6 +393,31 @@ export default function UserDashboard() {
           <p className="text-slate-500 mb-8 text-sm">
             Armá tu carrito, elegí recogida o domicilio, y gestioná pedidos pendientes.
           </p>
+
+          <section className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="text-base font-black text-slate-800">Productos disponibles para compra</h3>
+              <span className="text-xs text-slate-500">
+                {catalogo.length} referencia(s) activa(s)
+              </span>
+            </div>
+            {catalogo.length === 0 ? (
+              <p className="text-sm text-slate-500">No hay productos cargados en catálogo.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {catalogo.map((item) => (
+                  <article key={item.codigo} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="font-bold text-slate-800">{item.nombre}</p>
+                    <p className="text-xs text-red-700 font-mono mt-1">{item.codigo}</p>
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="font-black text-slate-900">{formatoCOP(Number(item.precio) || 0)}</span>
+                      <span className="text-slate-500">Stock: {item.stock}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
           {loading ? (
             <p className="text-slate-500 text-center py-10">Cargando…</p>
@@ -370,7 +434,26 @@ export default function UserDashboard() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex justify-end">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <input
+                    type="text"
+                    value={filtroPedido}
+                    onChange={(e) => setFiltroPedido(e.target.value)}
+                    placeholder="Filtrar por ID de pedido (ej: HAO-...)"
+                    className="w-full sm:w-80 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <select
+                    value={filtroHistorial}
+                    onChange={(e) => setFiltroHistorial(e.target.value)}
+                    className="w-full sm:w-56 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-red-600"
+                  >
+                    <option value="TODOS">Todas ({resumenHistorial.TODAS})</option>
+                    <option value="EN_PROCESO">En proceso ({resumenHistorial.EN_PROCESO})</option>
+                    <option value="LISTAS">Listas ({resumenHistorial.LISTAS})</option>
+                    <option value="CANCELADAS">Canceladas ({resumenHistorial.CANCELADAS})</option>
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={abrirNuevoPedido}
@@ -381,7 +464,7 @@ export default function UserDashboard() {
               </div>
 
               <div className="space-y-6">
-                {gruposPedidos.map((g) => (
+                {gruposPedidosFiltrados.map((g) => (
                   <div
                     key={g.numero}
                     className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm bg-white"
@@ -406,6 +489,23 @@ export default function UserDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs uppercase font-bold text-slate-400">Total del pedido</p>
+                        <p className="mt-1">
+                          <span
+                            className={`px-2 py-1 rounded text-[11px] font-black ${
+                              g.estadoHistorial === 'CANCELADAS'
+                                ? 'bg-slate-200 text-slate-700'
+                                : g.estadoHistorial === 'LISTAS'
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : 'bg-amber-100 text-amber-900'
+                            }`}
+                          >
+                            {g.estadoHistorial === 'LISTAS'
+                              ? 'LISTAS'
+                              : g.estadoHistorial === 'CANCELADAS'
+                                ? 'CANCELADAS'
+                                : 'EN PROCESO'}
+                          </span>
+                        </p>
                         <p className="text-2xl font-black text-slate-900">{formatoCOP(g.total)}</p>
                         {g.recargo > 0 ? (
                           <p className="text-[11px] text-slate-500">
@@ -436,9 +536,9 @@ export default function UserDashboard() {
                               <td className="p-4">
                                 <span
                                   className={`px-2 py-1 rounded text-xs font-black ${
-                                    p.estado === 'CANCELADO'
+                                    ESTADOS_CANCELADOS.has(p.estado)
                                       ? 'bg-slate-200 text-slate-700'
-                                      : p.estado === 'PENDIENTE'
+                                      : ETAPAS_PROCESO.has(p.estado)
                                         ? 'bg-amber-100 text-amber-900'
                                         : 'bg-emerald-100 text-emerald-900'
                                   }`}
@@ -481,6 +581,11 @@ export default function UserDashboard() {
                     )}
                   </div>
                 ))}
+                {gruposPedidosFiltrados.length === 0 && (
+                  <div className="p-6 rounded-2xl border border-dashed border-slate-300 text-center text-slate-500">
+                    No hay pedidos que coincidan con ese ID.
+                  </div>
+                )}
               </div>
             </div>
           )}

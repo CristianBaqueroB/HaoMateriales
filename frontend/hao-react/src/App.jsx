@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, useNavigate, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Importación de Componentes
 import Registro from './components/Registro';
@@ -12,18 +12,58 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [checkingSession, setCheckingSession] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/auth/me', {
+          credentials: 'include',
+        });
+        if (!activo) return;
+        if (!res.ok) {
+          setCheckingSession(false);
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const rolRecibido = (data.rol || '').toLowerCase();
+        if (rolRecibido === 'admin' || rolRecibido === 'administrador') {
+          navigate('/admin', { replace: true });
+        } else if (rolRecibido === 'operador') {
+          navigate('/operador', { replace: true });
+        } else if (rolRecibido === 'despachador') {
+          navigate('/despachador', { replace: true });
+        } else if (rolRecibido === 'usuario') {
+          navigate('/usuario', { replace: true });
+        } else {
+          setCheckingSession(false);
+        }
+      } catch {
+        if (activo) setCheckingSession(false);
+      }
+    })();
+    return () => {
+      activo = false;
+    };
+  }, [navigate]);
+
 const handleLogin = async (e) => {
   e.preventDefault();
   setError('');
 
   try {
+    const payload = {
+      email: email.trim().toLowerCase(),
+      password,
+    };
     const response = await fetch('http://localhost:3000/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   // 🔑 ESTA ES LA LLAVE: Permite que el navegador guarde la cookie de sesión
-  credentials: 'include', 
-  body: JSON.stringify({ email, password }),
+  credentials: 'include',
+  body: JSON.stringify(payload),
 });
     
     const data = await response.json();
@@ -51,6 +91,15 @@ const handleLogin = async (e) => {
     setError('Error de conexión con el servidor.'); 
   }
 };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
+        <p className="text-slate-500 text-sm">Verificando sesión…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">

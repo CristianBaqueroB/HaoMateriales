@@ -8,6 +8,7 @@ const { RECARGO_DOMICILIO_COP } = require('../models/PedidoCabecera');
 const { requireLogin } = require('../middleware/auth');
 
 const CAPACIDAD_MAXIMA = 30;
+const MAX_DIAS_REPROGRAMACION = 3;
 
 function mergeItemsByCodigo(items) {
     const map = new Map();
@@ -23,12 +24,29 @@ function mergeItemsByCodigo(items) {
 /** Cupo diario: no cuenta ENTREGADO ni CANCELADO; al editar excluye el mismo número de pedido. */
 async function encontrarFechaEntrega(cantidadLaminas, excludeNumeroPedido = null) {
     const fechaFacturacion = new Date().toISOString().split('T')[0];
-    let fechaBusqueda = new Date();
+    const fechaBase = new Date();
+    let fechaBusqueda = new Date(fechaBase);
     let cupoEncontrado = false;
     let mensajeAviso = null;
     const n = parseInt(cantidadLaminas, 10);
 
+    if (!Number.isFinite(n) || n < 1) {
+        return { error: 'Cantidad inválida para calcular entrega.' };
+    }
+    if (n > CAPACIDAD_MAXIMA) {
+        return {
+            error: `Capacidad excedida: un pedido no puede superar ${CAPACIDAD_MAXIMA} láminas.`,
+        };
+    }
+
     while (!cupoEncontrado) {
+        const diffDias = Math.floor((fechaBusqueda.getTime() - fechaBase.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > MAX_DIAS_REPROGRAMACION) {
+            return {
+                error: `No hay cupo disponible en los próximos ${MAX_DIAS_REPROGRAMACION} días. Intenta con menor cantidad.`,
+            };
+        }
+
         const fechaString = fechaBusqueda.toISOString().split('T')[0];
         const match = {
             fecha_entrega: fechaString,
@@ -52,7 +70,7 @@ async function encontrarFechaEntrega(cantidadLaminas, excludeNumeroPedido = null
 
     const fechaEntregaFinal = fechaBusqueda.toISOString().split('T')[0];
     if (fechaEntregaFinal !== fechaFacturacion) {
-        mensajeAviso = `⚠️ Capacidad completa. Entrega estimada: ${fechaEntregaFinal}`;
+        mensajeAviso = `⚠️ Capacidad completa. Entrega estimada: ${fechaEntregaFinal} (máximo ${MAX_DIAS_REPROGRAMACION} días de ajuste).`;
     }
     return { fechaFacturacion, fechaEntregaFinal, mensajeAviso };
 }
@@ -115,6 +133,14 @@ async function validarItemsConStock(merged, stockExtraPorCodigo) {
         laminaPorLinea.push({ lamina, cantidad: q });
     }
     return { laminaPorLinea, totalQty };
+}
+
+async function aplicarMovimientoStock(session, laminaId, delta) {
+    await Lamina.updateOne(
+        { _id: laminaId },
+        { $inc: { stock: delta } },
+        { session }
+    );
 }
 
 async function enriquecerFilas(rows) {
@@ -190,7 +216,14 @@ router.post('/pedidos', async (req, res) => {
             if (v.error) return res.status(400).json({ error: v.error });
 
             const { laminaPorLinea, totalQty } = v;
-            const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = await encontrarFechaEntrega(totalQty);
+            if (totalQty > CAPACIDAD_MAXIMA) {
+                return res.status(400).json({
+                    error: `Capacidad excedida: máximo ${CAPACIDAD_MAXIMA} láminas por pedido.`,
+                });
+            }
+            const calcEntrega = await encontrarFechaEntrega(totalQty);
+            if (calcEntrega.error) return res.status(400).json({ error: calcEntrega.error });
+            const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = calcEntrega;
             const numero_pedido = `HAO-${Date.now()}`;
 
             const docs = laminaPorLinea.map(({ lamina, cantidad }) => ({
@@ -220,6 +253,9 @@ router.post('/pedidos', async (req, res) => {
                 await session.withTransaction(async () => {
                     await PedidoCabecera.create([cabDoc], { session });
                     await Pedido.insertMany(docs, { session });
+                    for (const { lamina, cantidad } of laminaPorLinea) {
+                        await aplicarMovimientoStock(session, lamina._id, -cantidad);
+                    }
                 });
             } finally {
                 session.endSession();
@@ -244,6 +280,11 @@ router.post('/pedidos', async (req, res) => {
         if (!Number.isFinite(qty) || qty < 1) {
             return res.status(400).json({ error: 'Cantidad inválida.' });
         }
+        if (qty > CAPACIDAD_MAXIMA) {
+            return res.status(400).json({
+                error: `Capacidad excedida: máximo ${CAPACIDAD_MAXIMA} láminas por pedido.`,
+            });
+        }
 
         const ent = normalizarTipoEntrega(
             tipo_entrega || (direccion_envio ? 'domicilio' : 'punto_venta'),
@@ -257,7 +298,9 @@ router.post('/pedidos', async (req, res) => {
             return res.status(400).json({ error: `Stock insuficiente (disponible: ${lamina.stock}).` });
         }
 
-        const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = await encontrarFechaEntrega(qty);
+        const calcEntrega = await encontrarFechaEntrega(qty);
+        if (calcEntrega.error) return res.status(400).json({ error: calcEntrega.error });
+        const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = calcEntrega;
 
         const session = await mongoose.startSession();
         let pedidoDoc;
@@ -293,6 +336,7 @@ router.post('/pedidos', async (req, res) => {
                     ],
                     { session }
                 );
+                await aplicarMovimientoStock(session, lamina._id, -qty);
                 pedidoDoc = creado;
             });
         } finally {
@@ -449,10 +493,14 @@ router.put('/pedidos/grupo/:numeroPedido', async (req, res) => {
         if (v.error) return res.status(400).json({ error: v.error });
 
         const { laminaPorLinea, totalQty } = v;
-        const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = await encontrarFechaEntrega(
-            totalQty,
-            numeroPedido
-        );
+        if (totalQty > CAPACIDAD_MAXIMA) {
+            return res.status(400).json({
+                error: `Capacidad excedida: máximo ${CAPACIDAD_MAXIMA} láminas por pedido.`,
+            });
+        }
+        const calcEntrega = await encontrarFechaEntrega(totalQty, numeroPedido);
+        if (calcEntrega.error) return res.status(400).json({ error: calcEntrega.error });
+        const { fechaFacturacion, fechaEntregaFinal, mensajeAviso } = calcEntrega;
 
         const docs = laminaPorLinea.map(({ lamina, cantidad }) => ({
             usuario_id: usuarioId,
@@ -468,8 +516,14 @@ router.put('/pedidos/grupo/:numeroPedido', async (req, res) => {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
+                for (const ln of lineasActuales) {
+                    await aplicarMovimientoStock(session, ln.lamina_id, ln.cantidad_laminas);
+                }
                 await Pedido.deleteMany({ numero_pedido: numeroPedido, usuario_id: usuarioId }, { session });
                 await Pedido.insertMany(docs, { session });
+                for (const { lamina, cantidad } of laminaPorLinea) {
+                    await aplicarMovimientoStock(session, lamina._id, -cantidad);
+                }
                 cab.tipo_entrega = ent.tipo_entrega;
                 cab.direccion_envio = ent.direccion_envio;
                 cab.recargo_envio = ent.recargo_envio;
@@ -520,6 +574,14 @@ router.delete('/pedidos/grupo/:numeroPedido', async (req, res) => {
         if (cab) {
             cab.estado = 'cancelado';
             await cab.save();
+        }
+        const stockPorLamina = new Map();
+        for (const ln of lineas) {
+            const k = ln.lamina_id.toString();
+            stockPorLamina.set(k, (stockPorLamina.get(k) || 0) + ln.cantidad_laminas);
+        }
+        for (const [laminaId, cantidad] of stockPorLamina.entries()) {
+            await Lamina.updateOne({ _id: laminaId }, { $inc: { stock: cantidad } });
         }
         await Pedido.updateMany(
             { numero_pedido: numeroPedido, usuario_id: usuarioId },

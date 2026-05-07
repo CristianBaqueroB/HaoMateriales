@@ -4,7 +4,7 @@ const session = require('express-session');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 const connectDB = require('./config/db');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const app = express();
 
