@@ -48,24 +48,23 @@ Sistema de ventas y producción de láminas para `Hao Materiales`, con backend e
 │  ├─ swagger.json
 │  └─ package.json
 ├─ frontend/
-│  └─ hao-react/
-│     ├─ public/
-│     ├─ src/
-│     │  ├─ App.jsx
-│     │  ├─ index.css
-│     │  ├─ main.jsx
-│     │  ├─ components/
-│     │  │  ├─ Registro.jsx
-│     │  │  └─ dashboards/
-│     │  │     ├─ AdminDashboard.jsx
-│     │  │     ├─ DespachadorDashboard.jsx
-│     │  │     ├─ OperadorDashboard.jsx
-│     │  │     └─ UserDashboard.jsx
-│     ├─ package.json
-│     ├─ vite.config.js
-│     ├─ tailwind.config.js
-│     ├─ postcss.config.js
-│     └─ eslint.config.js
+│  ├─ public/
+│  ├─ src/
+│  │  ├─ App.jsx
+│  │  ├─ index.css
+│  │  ├─ main.jsx
+│  │  ├─ components/
+│  │  │  ├─ Registro.jsx
+│  │  │  └─ dashboards/
+│  │  │     ├─ AdminDashboard.jsx
+│  │  │     ├─ DespachadorDashboard.jsx
+│  │  │     ├─ OperadorDashboard.jsx
+│  │  │     └─ UserDashboard.jsx
+│  ├─ package.json
+│  ├─ vite.config.js
+│  ├─ tailwind.config.js
+│  ├─ postcss.config.js
+│  └─ eslint.config.js
 ```
 
 ## Lógica del backend
