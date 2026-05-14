@@ -9,24 +9,27 @@ require('dotenv').config({ override: true });
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
-const clientUrl = (process.env.CLIENT_URL || 'https://hao-materiales-ififl5aro-cristian-s-projects16.vercel.app').trim().replace(/\/$/, '');
+const clientUrl = (process.env.CLIENT_URL || 'https://hao-materiales.vercel.app').trim().replace(/\/$/, '');
 
 if (isProduction) {
     app.set('trust proxy', 1); // Necesario para que Render maneje las cookies seguras (HTTPS)
 }
 
 // 1. CORS: Permite credenciales y origen dinámico
+const allowedOrigins = [clientUrl, 'https://hao-materiales.vercel.app'];
+
 app.use(cors({
     origin: (origin, callback) => {
-        // Permitimos localhost para desarrollo y las URLs de Vercel para producción
-        if (!origin || origin === clientUrl || origin.endsWith('.vercel.app') || origin.includes('localhost')) {
+        // Verificamos si el origen está en nuestra lista, es un subdominio de vercel o es localhost
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('localhost')) {
             callback(null, true);
         } else {
-            console.error(`CORS Bloqueado para el origen: ${origin}`);
-            callback(new Error('No permitido por CORS'));
+            console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
+            callback(null, false); // No enviamos error para evitar que la respuesta pierda las cabeceras
         }
     },
     credentials: true,
+    optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
