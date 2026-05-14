@@ -9,19 +9,21 @@ require('dotenv').config({ override: true });
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
-const clientUrl = process.env.CLIENT_URL || 'https://hao-materiales-ififl5aro-cristian-s-projects16.vercel.app';
+const clientUrl = (process.env.CLIENT_URL || 'https://hao-materiales-ififl5aro-cristian-s-projects16.vercel.app').trim().replace(/\/$/, '');
 
 if (isProduction) {
-    app.set('trust proxy', 1); // necesario en Railway / proxies HTTPS para cookies seguras
+    app.set('trust proxy', 1); // Necesario para que Render maneje las cookies seguras (HTTPS)
 }
 
 // 1. CORS: Permite credenciales y origen dinámico
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || origin === clientUrl || origin.endsWith('.vercel.app')) {
+        // Permitimos localhost para desarrollo y las URLs de Vercel para producción
+        if (!origin || origin === clientUrl || origin.endsWith('.vercel.app') || origin.includes('localhost')) {
             callback(null, true);
         } else {
-            callback(new Error(`Origin ${origin} no permitido`));
+            console.error(`CORS Bloqueado para el origen: ${origin}`);
+            callback(new Error('No permitido por CORS'));
         }
     },
     credentials: true,

@@ -66,8 +66,8 @@ const response = await fetch(`${API_BASE}/api/auth/login`, {
   credentials: 'include',
   body: JSON.stringify(payload),
 });
-    
-    const data = await response.json();
+
+    const data = await response.json().catch(() => ({ error: 'El servidor no respondió correctamente.' }));
     console.log("Datos recibidos:", data); 
 
     if (response.ok) {
