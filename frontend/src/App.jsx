@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { API_BASE } from './lib/api.js';
 
 // Importación de Componentes
 import Registro from './components/Registro';
@@ -19,7 +20,7 @@ function Login() {
     let activo = true;
     (async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/auth/me', {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
           credentials: 'include',
         });
         if (!activo) return;
@@ -58,7 +59,7 @@ const handleLogin = async (e) => {
       email: email.trim().toLowerCase(),
       password,
     };
-    const response = await fetch('http://localhost:3000/api/auth/login', {
+const response = await fetch(`${API_BASE}/api/auth/login`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   // 🔑 ESTA ES LA LLAVE: Permite que el navegador guarde la cookie de sesión

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_BASE } from '../lib/api.js';
 
 export default function Registro() {
   const [formData, setFormData] = useState({ nombre: '', email: '', password: '' });
@@ -21,7 +22,7 @@ export default function Registro() {
       return;
     }
     try {
-      const response = await fetch('http://localhost:3000/api/auth/registro', {
+      const response = await fetch(`${API_BASE}/api/auth/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

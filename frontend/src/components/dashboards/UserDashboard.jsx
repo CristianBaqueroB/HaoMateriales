@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { API_BASE } from '../../lib/api.js';
 
-const API = 'http://localhost:3000/api/usuario';
+const API = `${API_BASE}/api/usuario`;
 const RECARGO_DOMICILIO_COP = 4000;
 const ESTADOS_LISTOS = new Set(['ENTREGADO']);
 const ESTADOS_CANCELADOS = new Set(['CANCELADO']);
@@ -365,7 +366,7 @@ export default function UserDashboard() {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
