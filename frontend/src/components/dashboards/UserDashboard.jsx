@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../lib/api.js';
 
 const API = `${API_BASE}/api/usuario`;
@@ -18,6 +19,7 @@ function formatoCOP(valor) {
 }
 
 export default function UserDashboard() {
+  const navigate = useNavigate();
   const [pedidos, setPedidos] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -40,7 +42,7 @@ export default function UserDashboard() {
   const fetchPedidos = useCallback(async () => {
     const res = await fetch(`${API}/mis-pedidos`, { credentials: 'include' });
     if (res.status === 401) {
-      window.location.href = '/login';
+      navigate('/login');
       return;
     }
     const data = await res.json();
@@ -50,7 +52,7 @@ export default function UserDashboard() {
   const fetchCatalogo = useCallback(async () => {
     const res = await fetch(`${API}/catalogo`, { credentials: 'include' });
     if (res.status === 401) {
-      window.location.href = '/login';
+      navigate('/login');
       return;
     }
     const data = await res.json();
@@ -373,7 +375,7 @@ export default function UserDashboard() {
     } catch {
       /* vacío */
     }
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   return (

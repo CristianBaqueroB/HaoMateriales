@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../lib/api.js';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [materiales, setMateriales] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [ventas, setVentas] = useState([]);
@@ -32,7 +34,7 @@ export default function AdminDashboard() {
       const data = await res.json().catch(() => null);
 
       if (res.status === 401) {
-        window.location.href = '/login';
+        navigate('/login');
         return;
       }
 
@@ -215,7 +217,7 @@ export default function AdminDashboard() {
     } catch {
       /* vacío */
     }
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   const ventasFiltradas = ventas.filter((v) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../../lib/api.js';
 
 
@@ -101,6 +102,7 @@ function colorEstado(estado) {
 export default function OperadorDashboard() {
   // --- LOS HOOKS SIEMPRE DEBEN IR AQUÍ ADENTRO ---
   const [cola, setCola] = useState([]);
+  const navigate = useNavigate();
   const [totalLaminasHoy, setTotalLaminasHoy] = useState(0); // Movido adentro
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -114,7 +116,7 @@ export default function OperadorDashboard() {
       const data = await res.json().catch(() => null);
       
       if (res.status === 401) {
-        window.location.href = '/login';
+        navigate('/login');
         return;
       }
       
@@ -197,7 +199,7 @@ export default function OperadorDashboard() {
     } catch {
       /* vacío */
     }
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   return (
