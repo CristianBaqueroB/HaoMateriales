@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { API_BASE } from '../../lib/api.js';
 
 
-const API = 'http://localhost:3000/api/operador';
+const API = `${API_BASE}/api/operador`;
 // Estas constantes están bien aquí afuera porque son valores fijos
 const LIMITE_DIARIO = 30;
 const FLUJO = ['CORTE', 'ENCHAPE', 'REFILADA', 'ZUNCHADA', 'LISTO'];
@@ -189,7 +190,7 @@ export default function OperadorDashboard() {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

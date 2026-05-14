@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '../../lib/api.js';
 
-const API = 'http://localhost:3000/api/despachador';
+const API = `${API_BASE}/api/despachador`;
 
 /** @typedef {{ id: string, cliente?: string, producto?: string, cantidad_laminas: number, fecha_entrega: string, numero_pedido: string, tipo_entrega: 'domicilio' | 'punto_venta', direccion_envio?: string }} PedidoLin */
 
@@ -191,7 +192,7 @@ export default function DespachadorDashboard() {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

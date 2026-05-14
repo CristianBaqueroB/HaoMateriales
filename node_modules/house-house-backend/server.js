@@ -7,25 +7,37 @@ const connectDB = require('./config/db');
 require('dotenv').config({ override: true });
 
 const app = express();
+const isProduction = process.env.NODE_ENV === 'production';
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// 1. CORS: Configurado para aceptar credenciales
-app.use(cors({ 
-    origin: 'http://localhost:5173', 
-    credentials: true // Permite el paso de cookies
+if (isProduction) {
+    app.set('trust proxy', 1); // necesario en Railway / proxies HTTPS para cookies seguras
+}
+
+// 1. CORS: Permite credenciales y origen dinámico
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || origin === clientUrl) {
+            callback(null, true);
+        } else {
+            callback(new Error(`Origin ${origin} no permitido`));
+        }
+    },
+    credentials: true,
 }));
 
 app.use(express.json());
 
-// 2. SESIÓN: Configurada para desarrollo local entre diferentes puertos
+// 2. SESIÓN: Usar cookies seguras en producción y sameSite None para cross-site
 app.use(session({
     secret: process.env.SESSION_SECRET || 'hao_clave_secreta_upc',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        secure: false,    // false porque usamos http:// (no https)
-        httpOnly: true,   // Protege la cookie de ataques JS
-        sameSite: 'lax'   // 🔑 PERMITE compartir la sesión entre puertos locales
-    }
+    cookie: {
+        secure: isProduction,
+        httpOnly: true,
+        sameSite: isProduction ? 'none' : 'lax',
+    },
 }));
 
 // Documentación

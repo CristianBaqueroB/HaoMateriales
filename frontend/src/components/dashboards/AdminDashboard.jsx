@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '../../lib/api.js';
 
 export default function AdminDashboard() {
   const [materiales, setMateriales] = useState([]);
@@ -25,7 +26,7 @@ export default function AdminDashboard() {
     setUsuariosError('');
     setUsuariosCargando(true);
     try {
-      const res = await fetch('http://localhost:3000/api/admin/usuarios', {
+      const res = await fetch(`${API_BASE}/api/admin/usuarios`, {
         credentials: 'include',
       });
       const data = await res.json().catch(() => null);
@@ -69,7 +70,7 @@ export default function AdminDashboard() {
     setVentasError('');
     setVentasCargando(true);
     try {
-      const res = await fetch('http://localhost:3000/api/admin/ventas', {
+      const res = await fetch(`${API_BASE}/api/admin/ventas`, {
         credentials: 'include',
       });
       const data = await res.json().catch(() => null);
@@ -97,7 +98,7 @@ export default function AdminDashboard() {
 
   const fetchMateriales = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/admin/laminas', {
+    const res = await fetch(`${API_BASE}/api/admin/laminas`, {
       // 🔑 TAMBIÉN AQUÍ: Envía la cookie guardada al servidor
       credentials: 'include' 
     });
@@ -125,7 +126,7 @@ export default function AdminDashboard() {
         precio: Number(nuevoMaterial.precio),
         stock: Number(nuevoMaterial.stock),
       };
-      const res = await fetch('http://localhost:3000/api/admin/laminas', {
+      const res = await fetch(`${API_BASE}/api/admin/laminas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -159,7 +160,7 @@ export default function AdminDashboard() {
         precio: Number(editingMaterial.precio),
         stock: Number(editingMaterial.stock),
       };
-      const res = await fetch(`http://localhost:3000/api/admin/laminas/${editingMaterial.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/laminas/${editingMaterial.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -188,7 +189,7 @@ export default function AdminDashboard() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:3000/api/admin/laminas/${id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/laminas/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -207,7 +208,7 @@ export default function AdminDashboard() {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
